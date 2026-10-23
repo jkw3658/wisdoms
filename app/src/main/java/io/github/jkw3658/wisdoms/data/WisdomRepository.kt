@@ -23,6 +23,9 @@ import java.net.URLEncoder
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
+/** 「1 つ前に戻る」で遡れる件数 */
+private const val MAX_HISTORY = 30
+
 data class Settings(
     val scriptUrl: String = "",
     val token: String = "",
@@ -42,6 +45,11 @@ class WisdomRepository private constructor(private val context: Context) {
 
     val current: Flow<Wisdom?> = context.dataStore.data.map { prefs ->
         prefs[Keys.CURRENT]?.let { Wisdom.fromJson(JSONObject(it)) }
+    }
+
+    /** 「1 つ前に戻る」ができるか */
+    val canGoBack: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.HISTORY]?.let { decodeDeck(it).isNotEmpty() } ?: false
     }
 
     suspend fun currentWisdom(): Wisdom? = current.first()
@@ -154,6 +162,32 @@ class WisdomRepository private constructor(private val context: Context) {
         context.dataStore.edit {
             it[Keys.DECK] = encodeDeck(deck.drop(1))
             it[Keys.CURRENT] = wisdom.toJson().toString()
+            // 戻れるように、それまで表示していた言葉を履歴に積む
+            prefs[Keys.CURRENT]?.let { cur ->
+                val history = decodeDeck(prefs[Keys.HISTORY] ?: "[]") + cur
+                it[Keys.HISTORY] = encodeDeck(history.takeLast(MAX_HISTORY))
+            }
+        }
+        wisdom
+    }
+
+    /**
+     * 1 つ前の言葉に戻る。いま表示している言葉は山札の先頭に戻し、
+     * 次へ進むと再び表示されるようにする。
+     */
+    suspend fun previous(): Wisdom? = mutex.withLock {
+        val prefs = context.dataStore.data.first()
+        val history = decodeDeck(prefs[Keys.HISTORY] ?: "[]")
+        if (history.isEmpty()) return null
+        val stored = Wisdom.fromJson(JSONObject(history.last()))
+        // チェック状態などはキャッシュの最新値を使う
+        val wisdom = cachedWisdoms().firstOrNull { it.isSameRow(stored) } ?: stored
+        val currentText = prefs[Keys.CURRENT]?.let { JSONObject(it).optString("text") }
+        val deck = decodeDeck(prefs[Keys.DECK] ?: "[]")
+        context.dataStore.edit {
+            it[Keys.HISTORY] = encodeDeck(history.dropLast(1))
+            it[Keys.CURRENT] = wisdom.toJson().toString()
+            if (currentText != null) it[Keys.DECK] = encodeDeck(listOf(currentText) + deck)
         }
         wisdom
     }
@@ -206,6 +240,7 @@ class WisdomRepository private constructor(private val context: Context) {
         val LAST_FETCHED = longPreferencesKey("last_fetched_at")
         val CURRENT = stringPreferencesKey("current")
         val DECK = stringPreferencesKey("deck")
+        val HISTORY = stringPreferencesKey("history")
     }
 
     companion object {

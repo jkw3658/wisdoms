@@ -39,23 +39,26 @@ import androidx.glance.text.TextStyle
 import io.github.jkw3658.wisdoms.MainActivity
 import io.github.jkw3658.wisdoms.data.Wisdom
 import io.github.jkw3658.wisdoms.data.WisdomRepository
+import kotlinx.coroutines.flow.first
 
 class WisdomWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repo = WisdomRepository.get(context)
         val initial = repo.currentWisdom()
+        val initialCanGoBack = repo.canGoBack.first()
         provideContent {
             // ウィジェット表示中も変更を受け取れるよう、Flow を購読して再描画する
             val wisdom by repo.current.collectAsState(initial = initial)
+            val canGoBack by repo.canGoBack.collectAsState(initial = initialCanGoBack)
             GlanceTheme {
-                Content(wisdom)
+                Content(wisdom, canGoBack)
             }
         }
     }
 
     @Composable
-    private fun Content(wisdom: Wisdom?) {
+    private fun Content(wisdom: Wisdom?, canGoBack: Boolean) {
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
@@ -78,6 +81,14 @@ class WisdomWidget : GlanceAppWidget() {
                     maxLines = 1,
                     modifier = GlanceModifier.defaultWeight(),
                 )
+                if (wisdom != null && canGoBack) {
+                    Text(
+                        text = "◀",
+                        style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp),
+                        modifier = GlanceModifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            .clickable(actionRunCallback<PreviousWisdomAction>()),
+                    )
+                }
                 if (wisdom != null) {
                     CheckBox(
                         checked = wisdom.checked,
@@ -122,6 +133,13 @@ class WisdomWidget : GlanceAppWidget() {
             WisdomRepository.get(context).next()
             WisdomWidget().updateAll(context)
         }
+    }
+}
+
+class PreviousWisdomAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        WisdomRepository.get(context).previous()
+        WisdomWidget().updateAll(context)
     }
 }
 
