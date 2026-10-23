@@ -98,8 +98,9 @@ class WisdomWidget : GlanceAppWidget() {
                 }
                 Text(
                     text = "⚙",
-                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 14.sp),
-                    modifier = GlanceModifier.padding(start = 8.dp)
+                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 22.sp),
+                    // 周りの余白もタップ範囲になるので、押しやすいよう広めに取る
+                    modifier = GlanceModifier.padding(start = 6.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
                         .clickable(actionStartActivity<MainActivity>()),
                 )
             }
