@@ -1,6 +1,9 @@
 package io.github.jkw3658.wisdoms.widget
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -11,6 +14,7 @@ import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.CheckBox
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.ActionCallback
@@ -21,7 +25,6 @@ import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
-import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -75,6 +78,13 @@ class WisdomWidget : GlanceAppWidget() {
                     maxLines = 1,
                     modifier = GlanceModifier.defaultWeight(),
                 )
+                if (wisdom != null) {
+                    CheckBox(
+                        checked = wisdom.checked,
+                        onCheckedChange = actionRunCallback<ToggleCheckAction>(),
+                        modifier = GlanceModifier.padding(start = 8.dp),
+                    )
+                }
                 Text(
                     text = "⚙",
                     style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 14.sp),
@@ -83,19 +93,16 @@ class WisdomWidget : GlanceAppWidget() {
                 )
             }
             Spacer(GlanceModifier.height(6.dp))
-            Box(
-                modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Text(
-                    text = wisdom?.text ?: "タップしてアプリを開き、シートの接続を設定してください",
-                    style = TextStyle(
-                        color = GlanceTheme.colors.onSurface,
-                        fontSize = 21.sp,
-                    ),
-                )
-            }
+            Text(
+                text = wisdom?.text ?: "タップしてアプリを開き、シートの接続を設定してください",
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontSize = 21.sp,
+                ),
+                modifier = GlanceModifier.fillMaxWidth(),
+            )
             if (!wisdom?.source.isNullOrBlank()) {
+                Spacer(GlanceModifier.height(8.dp))
                 Text(
                     text = "— ${wisdom!!.source}",
                     style = TextStyle(
@@ -121,6 +128,20 @@ class WisdomWidget : GlanceAppWidget() {
 class NextWisdomAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         WisdomWidget.showNext(context)
+    }
+}
+
+class ToggleCheckAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        try {
+            WisdomRepository.get(context).toggleCurrentChecked()
+        } catch (e: Exception) {
+            val message = "シートに反映できませんでした: ${e.message}"
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
+        }
+        WisdomWidget().updateAll(context)
     }
 }
 

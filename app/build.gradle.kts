@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.jkw3658.wisdoms"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     // 署名鍵は CI のシークレットから渡す。未設定ならデバッグ鍵で署名する

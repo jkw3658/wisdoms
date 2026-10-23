@@ -69,13 +69,63 @@ class WisdomRepository private constructor(private val context: Context) {
     suspend fun refresh(): Int {
         val s = settings.first()
         require(s.isConfigured) { "設定画面で URL とトークンを入力してください" }
-        val list = withContext(Dispatchers.IO) { download(s.scriptUrl, s.token) }
-        withContext(Dispatchers.IO) { cacheFile.writeText(Wisdom.listToJson(list).toString()) }
-        context.dataStore.edit {
-            it[Keys.LAST_FETCHED] = System.currentTimeMillis()
-            it.remove(Keys.DECK)
+        val json = withContext(Dispatchers.IO) { callScript(s, emptyMap()) }
+        val list = Wisdom.listFromJson(json.getJSONArray("items"))
+        mutex.withLock {
+            writeCache(list)
+            context.dataStore.edit { prefs ->
+                prefs[Keys.LAST_FETCHED] = System.currentTimeMillis()
+                prefs.remove(Keys.DECK)
+                // 表示中の言葉もシートの最新状態（チェックなど）に合わせる
+                val cur = prefs[Keys.CURRENT]?.let { Wisdom.fromJson(JSONObject(it)) }
+                list.firstOrNull { it.text == cur?.text }?.let { prefs[Keys.CURRENT] = it.toJson().toString() }
+            }
         }
         return list.size
+    }
+
+    /**
+     * 表示中の言葉のチェックを切り替え、シートの「チェック」列に書き込む。
+     * 画面はすぐに切り替え、書き込みに失敗したら元に戻して例外を投げる。
+     */
+    suspend fun toggleCurrentChecked() {
+        val target = currentWisdom() ?: return
+        val checked = !target.checked
+        mutex.withLock { updateLocal(target, checked) }
+        try {
+            val s = settings.first()
+            require(s.isConfigured) { "設定画面で URL とトークンを入力してください" }
+            val res = withContext(Dispatchers.IO) {
+                callScript(
+                    s,
+                    mapOf(
+                        "action" to "check",
+                        "row" to target.row.toString(),
+                        "head" to target.text.take(30),
+                        "checked" to checked.toString(),
+                    ),
+                )
+            }
+            // 古い Apps Script は action=check を知らず一覧を返すだけなので検出する
+            check(res.optBoolean("ok")) { "Apps Script を最新版に更新してください" }
+        } catch (e: Exception) {
+            mutex.withLock { updateLocal(target, target.checked) }
+            throw e
+        }
+    }
+
+    private suspend fun updateLocal(target: Wisdom, checked: Boolean) {
+        writeCache(cachedWisdoms().map { if (it.isSameRow(target)) it.copy(checked = checked) else it })
+        context.dataStore.edit { prefs ->
+            val cur = prefs[Keys.CURRENT]?.let { Wisdom.fromJson(JSONObject(it)) }
+            if (cur != null && cur.isSameRow(target)) {
+                prefs[Keys.CURRENT] = cur.copy(checked = checked).toJson().toString()
+            }
+        }
+    }
+
+    private suspend fun writeCache(list: List<Wisdom>) = withContext(Dispatchers.IO) {
+        cacheFile.writeText(Wisdom.listToJson(list).toString())
     }
 
     /**
@@ -108,9 +158,11 @@ class WisdomRepository private constructor(private val context: Context) {
         wisdom
     }
 
-    private fun download(scriptUrl: String, token: String): List<Wisdom> {
-        val sep = if ('?' in scriptUrl) '&' else '?'
-        val url = URL(scriptUrl + sep + "token=" + URLEncoder.encode(token, "UTF-8"))
+    private fun callScript(s: Settings, params: Map<String, String>): JSONObject {
+        val query = (mapOf("token" to s.token) + params).entries
+            .joinToString("&") { (k, v) -> k + "=" + URLEncoder.encode(v, "UTF-8") }
+        val sep = if ('?' in s.scriptUrl) '&' else '?'
+        val url = URL(s.scriptUrl + sep + query)
         val conn = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 30_000
@@ -127,7 +179,7 @@ class WisdomRepository private constructor(private val context: Context) {
                 val e = json.getString("error")
                 error(if (e == "unauthorized") "トークンが一致しません" else e)
             }
-            return Wisdom.listFromJson(json.getJSONArray("items"))
+            return json
         } finally {
             conn.disconnect()
         }

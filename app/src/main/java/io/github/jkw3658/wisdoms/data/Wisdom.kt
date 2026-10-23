@@ -7,17 +7,27 @@ data class Wisdom(
     val text: String,
     val category: String = "",
     val source: String = "",
+    /** シート上の行番号（1 始まり）。0 は不明 */
+    val row: Int = 0,
+    val checked: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("text", text)
         .put("category", category)
         .put("source", source)
+        .put("row", row)
+        .put("checked", checked)
+
+    /** 同じシート上の行を指しているか */
+    fun isSameRow(other: Wisdom): Boolean = row == other.row && text == other.text
 
     companion object {
         fun fromJson(o: JSONObject) = Wisdom(
             text = o.optString("text"),
             category = o.optString("category"),
             source = o.optString("source"),
+            row = o.optInt("row"),
+            checked = o.optBoolean("checked"),
         )
 
         fun listFromJson(arr: JSONArray): List<Wisdom> =
