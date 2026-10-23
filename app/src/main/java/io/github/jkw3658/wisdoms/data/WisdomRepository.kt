@@ -3,7 +3,6 @@ package io.github.jkw3658.wisdoms.data
 import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -29,14 +28,9 @@ data class Settings(
     val token: String = "",
     /** 空集合 = すべてのカテゴリを表示 */
     val selectedCategories: Set<String> = emptySet(),
-    val intervalMinutes: Int = DEFAULT_INTERVAL_MINUTES,
     val lastFetchedAt: Long = 0L,
 ) {
     val isConfigured: Boolean get() = scriptUrl.isNotBlank() && token.isNotBlank()
-
-    companion object {
-        const val DEFAULT_INTERVAL_MINUTES = 30
-    }
 }
 
 class WisdomRepository private constructor(private val context: Context) {
@@ -57,10 +51,6 @@ class WisdomRepository private constructor(private val context: Context) {
             it[Keys.SCRIPT_URL] = scriptUrl.trim()
             it[Keys.TOKEN] = token.trim()
         }
-    }
-
-    suspend fun saveInterval(minutes: Int) {
-        context.dataStore.edit { it[Keys.INTERVAL] = minutes }
     }
 
     suspend fun saveSelectedCategories(categories: Set<String>) {
@@ -154,7 +144,6 @@ class WisdomRepository private constructor(private val context: Context) {
         scriptUrl = this[Keys.SCRIPT_URL].orEmpty(),
         token = this[Keys.TOKEN].orEmpty(),
         selectedCategories = this[Keys.CATEGORIES].orEmpty(),
-        intervalMinutes = this[Keys.INTERVAL] ?: Settings.DEFAULT_INTERVAL_MINUTES,
         lastFetchedAt = this[Keys.LAST_FETCHED] ?: 0L,
     )
 
@@ -162,7 +151,6 @@ class WisdomRepository private constructor(private val context: Context) {
         val SCRIPT_URL = stringPreferencesKey("script_url")
         val TOKEN = stringPreferencesKey("token")
         val CATEGORIES = stringSetPreferencesKey("categories")
-        val INTERVAL = intPreferencesKey("interval_minutes")
         val LAST_FETCHED = longPreferencesKey("last_fetched_at")
         val CURRENT = stringPreferencesKey("current")
         val DECK = stringPreferencesKey("deck")

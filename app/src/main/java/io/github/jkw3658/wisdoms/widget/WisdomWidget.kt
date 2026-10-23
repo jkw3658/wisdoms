@@ -2,6 +2,8 @@ package io.github.jkw3658.wisdoms.widget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -34,15 +36,15 @@ import androidx.glance.text.TextStyle
 import io.github.jkw3658.wisdoms.MainActivity
 import io.github.jkw3658.wisdoms.data.Wisdom
 import io.github.jkw3658.wisdoms.data.WisdomRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class WisdomWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val wisdom = WisdomRepository.get(context).currentWisdom()
+        val repo = WisdomRepository.get(context)
+        val initial = repo.currentWisdom()
         provideContent {
+            // ウィジェット表示中も変更を受け取れるよう、Flow を購読して再描画する
+            val wisdom by repo.current.collectAsState(initial = initial)
             GlanceTheme {
                 Content(wisdom)
             }
@@ -89,7 +91,7 @@ class WisdomWidget : GlanceAppWidget() {
                     text = wisdom?.text ?: "タップしてアプリを開き、シートの接続を設定してください",
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurface,
-                        fontSize = 16.sp,
+                        fontSize = 21.sp,
                     ),
                 )
             }
@@ -127,18 +129,11 @@ class WisdomWidgetReceiver : GlanceAppWidgetReceiver() {
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        val pending = goAsync()
-        CoroutineScope(Dispatchers.Default).launch {
-            try {
-                RotateWorker.schedule(context)
-            } finally {
-                pending.finish()
-            }
-        }
+        SyncWorker.schedule(context)
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        RotateWorker.cancel(context)
+        SyncWorker.cancel(context)
     }
 }

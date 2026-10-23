@@ -54,14 +54,12 @@ import androidx.compose.ui.unit.sp
 import io.github.jkw3658.wisdoms.data.Settings
 import io.github.jkw3658.wisdoms.data.WisdomRepository
 import io.github.jkw3658.wisdoms.data.categoryKey
-import io.github.jkw3658.wisdoms.widget.RotateWorker
+import io.github.jkw3658.wisdoms.widget.SyncWorker
 import io.github.jkw3658.wisdoms.widget.WisdomWidget
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private val INTERVAL_OPTIONS = listOf(15, 30, 60, 180, 360)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,7 +109,7 @@ private fun MainScreen() {
         categories = all.map { it.categoryKey }.distinct()
     }
     LaunchedEffect(Unit) {
-        RotateWorker.schedule(context)
+        SyncWorker.schedule(context)
     }
 
     fun showNext() = scope.launch { WisdomWidget.showNext(context) }
@@ -153,7 +151,7 @@ private fun MainScreen() {
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
-                    Text(w.text, fontSize = 20.sp, lineHeight = 30.sp)
+                    Text(w.text, fontSize = 26.sp, lineHeight = 39.sp)
                     if (w.source.isNotBlank()) {
                         Text(
                             "— ${w.source}",
@@ -219,27 +217,6 @@ private fun MainScreen() {
             }
         }
 
-        HorizontalDivider()
-        SectionTitle("ウィジェットの切り替え間隔")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            INTERVAL_OPTIONS.forEach { min ->
-                FilterChip(
-                    selected = s.intervalMinutes == min,
-                    onClick = {
-                        scope.launch {
-                            repo.saveInterval(min)
-                            RotateWorker.schedule(context, min)
-                        }
-                    },
-                    label = { Text(if (min < 60) "${min}分" else "${min / 60}時間") },
-                )
-            }
-        }
-        Text(
-            "ウィジェットはタップでも次の言葉に切り替わります。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
 
         HorizontalDivider()
         ConnectionSection(s) { url, token ->
@@ -252,7 +229,7 @@ private fun MainScreen() {
         HorizontalDivider()
         SectionTitle("ウィジェットの追加方法")
         Text(
-            "ホーム画面の空いている所を長押し →「ウィジェット」→「格言」を選んで配置してください。",
+            "ホーム画面の空いている所を長押し →「ウィジェット」→「格言」を選んで配置してください。ウィジェットをタップすると次の言葉に切り替わります。",
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(24.dp))
