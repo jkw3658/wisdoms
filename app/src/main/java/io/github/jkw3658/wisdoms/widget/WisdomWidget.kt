@@ -122,7 +122,7 @@ class WisdomWidget : GlanceAppWidget() {
                         fontSize = 12.sp,
                         textAlign = TextAlign.End,
                     ),
-                    maxLines = 1,
+                    // 出典が長い場合も折り返して全文を表示する
                     modifier = GlanceModifier.fillMaxWidth(),
                 )
             }
